@@ -13,8 +13,13 @@ const User = mongoose.model("User", userSchema);
 // TASK
 const taskSchema = new mongoose.Schema({
   title: String,
+  description: String, 
+  status: {         
+    type: String,
+    default: "pending"
+  },
   userId: String
-});
+}, { timestamps: true }); 
 
 const Task = mongoose.model("Task", taskSchema);
 
