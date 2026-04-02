@@ -41,9 +41,15 @@ export default function TaskManager() {
 
     setIsLoading(true);
     try {
-      const data = await getTasks(token);
-      setTasks(data);
-    } catch (err) {
+      const res = await getTasks(token);
+
+      // 🔥 FIX: extract data correctly
+      if (res.success && Array.isArray(res.data)) {
+        setTasks(res.data);
+      } else {
+        setTasks([]);
+      }
+    } catch {
       toast.error('Failed to load tasks');
     }
     setIsLoading(false);
@@ -53,13 +59,14 @@ export default function TaskManager() {
     e.preventDefault();
     if (!token) return;
 
-    try {
-      await createTask(token, title);
+    const res = await createTask(token, { title, description, status });
+
+    if (res.success) {
       toast.success('Task created');
       setIsCreateDialogOpen(false);
       resetForm();
       loadTasks();
-    } catch {
+    } else {
       toast.error('Failed to create task');
     }
   };
@@ -68,27 +75,33 @@ export default function TaskManager() {
     e.preventDefault();
     if (!token || !editingTask) return;
 
-    try {
-      await updateTask(token, editingTask._id, title);
+    const res = await updateTask(token, editingTask._id, {
+      title,
+      description,
+      status
+    });
+
+    if (res.success) {
       toast.success('Task updated');
       setIsEditDialogOpen(false);
       setEditingTask(null);
       resetForm();
       loadTasks();
-    } catch {
+    } else {
       toast.error('Failed to update task');
     }
   };
 
   const handleDelete = async (taskId: string) => {
     if (!token) return;
-    if (!confirm('Are you sure you want to delete this task?')) return;
+    if (!confirm('Are you sure?')) return;
 
-    try {
-      await deleteTask(token, taskId);
+    const res = await deleteTask(token, taskId);
+
+    if (res.success) {
       toast.success('Task deleted');
       loadTasks();
-    } catch {
+    } else {
       toast.error('Failed to delete task');
     }
   };
@@ -131,6 +144,7 @@ export default function TaskManager() {
 
   return (
     <div>
+      {/* HEADER */}
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Tasks</h2>
@@ -142,35 +156,179 @@ export default function TaskManager() {
         </Button>
       </div>
 
+      {/* LOADING */}
       {isLoading ? (
-        <div>Loading...</div>
-      ) : tasks.length === 0 ? (
-        <p>No tasks yet</p>
-      ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {tasks.map((task) => (
-            <Card key={task._id}>
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="animate-pulse">
               <CardHeader>
-                <CardTitle>{task.title}</CardTitle>
+                <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
               </CardHeader>
               <CardContent>
+                <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
+                <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : tasks.length === 0 ? (
+        /* EMPTY STATE */
+        <Card className="text-center py-12">
+          <CardContent>
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+              <Clock className="w-8 h-8 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No tasks yet</h3>
+            <p className="text-gray-600 mb-4">Create your first task to get started</p>
+            <Button onClick={() => setIsCreateDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create Task
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        /* TASK CARDS */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {tasks.map((task) => (
+            <Card key={task._id} className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <CardTitle className="text-lg">{task.title}</CardTitle>
+                  <Badge className={getStatusColor(task.status)} variant="outline">
+                    {getStatusIcon(task.status)}
+                    <span className="ml-1 capitalize">
+                      {task.status?.replace('-', ' ')}
+                    </span>
+                  </Badge>
+                </div>
+                <CardDescription className="line-clamp-2">
+                  {task.description}
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent>
                 <div className="flex gap-2">
-                  <Button onClick={() => openEditDialog(task)}>
+                  <Button size="sm" variant="outline" onClick={() => openEditDialog(task)} className="flex-1">
                     <Edit2 className="w-4 h-4 mr-1" />
                     Edit
                   </Button>
-                  <Button onClick={() => handleDelete(task._id)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDelete(task._id)}
+                    className="flex-1 text-red-600 hover:bg-red-50"
+                  >
                     <Trash2 className="w-4 h-4 mr-1" />
                     Delete
                   </Button>
                 </div>
+
+                <p className="text-xs text-gray-500 mt-3">
+                  Created {new Date(task.createdAt).toLocaleDateString()}
+                </p>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
 
-      {/* Dialogs remain SAME UI (no change needed) */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Create New Task</DialogTitle>
+      <DialogDescription>Add a new task</DialogDescription>
+    </DialogHeader>
+
+    <form onSubmit={handleCreate}>
+      <div className="space-y-4">
+        <div>
+          <Label>Title</Label>
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+          />
+        </div>
+
+        <div>
+          <Label>Description</Label>
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+
+        <div>
+          <Label>Status</Label>
+          <Select value={status} onValueChange={(v) => setStatus(v as any)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <DialogFooter className="mt-4">
+        <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+          Cancel
+        </Button>
+        <Button type="submit">Create</Button>
+      </DialogFooter>
+    </form>
+  </DialogContent>
+</Dialog>
+
+<Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+  <DialogContent>
+    <DialogHeader>
+      <DialogTitle>Edit Task</DialogTitle>
+      <DialogDescription>Update task</DialogDescription>
+    </DialogHeader>
+
+    <form onSubmit={handleUpdate}>
+      <div className="space-y-4">
+        <div>
+          <Label>Title</Label>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+
+        <div>
+          <Label>Description</Label>
+          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+        </div>
+
+        <div>
+          <Label>Status</Label>
+          <Select value={status} onValueChange={(v) => setStatus(v as any)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <DialogFooter className="mt-4">
+        <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+          Cancel
+        </Button>
+        <Button type="submit">Update</Button>
+      </DialogFooter>
+    </form>
+  </DialogContent>
+</Dialog>
+      
+
     </div>
   );
 }

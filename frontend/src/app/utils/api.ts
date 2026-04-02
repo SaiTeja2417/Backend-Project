@@ -1,81 +1,49 @@
 const BASE_URL = "http://localhost:5000/api/v1";
 
-// ================= AUTH =================
+export const apiRequest = async (
+  endpoint: string,
+  method: string,
+  body?: any,
+  token?: string
+) => {
+  try {
+    const res = await fetch(`${BASE_URL}${endpoint}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token && { Authorization: `Bearer ${token}` }), // ✅ FIXED
+      },
+      ...(body && { body: JSON.stringify(body) }),
+    });
 
-export const registerUser = async (data: {
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error("API Error:", error);
+    return { success: false, message: "Network error" };
+  }
+};
+
+// ================= AUTH =================
+export const loginUser = (email: string, password: string) =>
+  apiRequest("/login", "POST", { email, password });
+
+export const registerUser = (data: {
   name: string;
   email: string;
   password: string;
   role: string;
-}) => {
-  const res = await fetch(`${BASE_URL}/register`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
-
-  return res.json();
-};
-
-export const loginUser = async (email: string, password: string) => {
-  const res = await fetch(`${BASE_URL}/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ email, password }),
-  });
-
-  return res.json();
-};
+}) => apiRequest("/register", "POST", data);
 
 // ================= TASK =================
+export const getTasks = (token: string) =>
+  apiRequest("/tasks", "GET", null, token);
 
-export const getTasks = async (token: string) => {
-  const res = await fetch(`${BASE_URL}/tasks`, {
-    headers: {
-      Authorization: token,
-    },
-  });
+export const createTask = (token: string, data: any) =>
+  apiRequest("/tasks", "POST", data, token);
 
-  return res.json();
-};
+export const updateTask = (token: string, id: string, data: any) =>
+  apiRequest(`/tasks/${id}`, "PUT", data, token);
 
-export const createTask = async (token: string, title: string) => {
-  const res = await fetch(`${BASE_URL}/tasks`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: token,
-    },
-    body: JSON.stringify({ title }),
-  });
-
-  return res.json();
-};
-
-export const updateTask = async (token: string, id: string, title: string) => {
-  const res = await fetch(`${BASE_URL}/tasks/${id}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: token,
-    },
-    body: JSON.stringify({ title }),
-  });
-
-  return res.json();
-};
-
-export const deleteTask = async (token: string, id: string) => {
-  const res = await fetch(`${BASE_URL}/tasks/${id}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: token,
-    },
-  });
-
-  return res.json();
-};
+export const deleteTask = (token: string, id: string) =>
+  apiRequest(`/tasks/${id}`, "DELETE", null, token);
